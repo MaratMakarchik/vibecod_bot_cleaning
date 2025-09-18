@@ -219,3 +219,19 @@ async def get_current_week_schedule():
         """, (latest_date,))
         
         return await cursor.fetchall()
+
+async def get_user_duty(telegram_id):
+    """Получает информацию о дежурстве пользователя на текущей неделе."""
+    async with aiosqlite.connect(DB_NAME) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("""
+            SELECT s.id, r.name as resident_name, rm.name as room_name, r.telegram_id
+            FROM schedule s
+            JOIN residents r ON s.resident_id = r.id
+            JOIN rooms rm ON s.room_id = rm.id
+            WHERE s.is_completed = FALSE 
+            AND date('now') >= s.week_start_date 
+            AND date('now') <= date(s.week_start_date, '+6 days')
+            AND r.telegram_id = ?
+        """, (telegram_id,))
+        return await cursor.fetchone()

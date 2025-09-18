@@ -5,7 +5,7 @@ from aiogram.filters import CommandStart
 from aiogram import Bot
 # Добавляем новый импорт
 from app.db.database import get_resident_by_tg_id, get_average_ratings, get_current_week_schedule
-from app.db.database import get_uncompleted_duties_for_today
+from app.db.database import get_user_duty
 from app.keyboards.inline import get_confirm_keyboard
 
 router = Router()
@@ -30,7 +30,7 @@ async def cmd_start(message: Message):
             "Пожалуйста, напиши свое **имя** (точно как в списке жильцов), чтобы я мог тебя узнать."
         )
 
-# Новая функция для команды /schedule
+
 @router.message(F.text == "/schedule")
 async def cmd_schedule(message: Message):
     # Проверяем, зарегистрирован ли пользователь
@@ -74,29 +74,24 @@ async def cmd_ratings(message: Message):
     await message.answer(response, parse_mode="Markdown")
 
 @router.message(F.text == "/confirmation")
-async def cmd_ratings(message: Message, bot: Bot):
-    duties = await get_uncompleted_duties_for_today()
-    for duty in duties:
-        if duty['telegram_id']:
-            try:
-                message1 = (f"👋 **Ты уверен, что хорошо убрался ?**\n\n"
-                           f"Не забудь, что на этой неделе твоя очередь убирать: **{duty['room_name']}**.\n"
-                           "Когда закончишь, нажми на кнопку ниже.")
-                await bot.send_message(
-                    chat_id=duty['telegram_id'],
-                    text=message1,
-                    parse_mode="Markdown",
-                    reply_markup=get_confirm_keyboard(duty['id'])
-                )
-            except Exception as e:
-                print(f"Failed to send reminder to {duty['resident_name']}: {e}")
-        else:
-            has_conf = True
-        if has_conf:
-            try:
-                message2 = "Чувак, тебя нет в списке на уборку"
-                await message.answer(message2)
-            except Exception as e:
-                print(f"Failed to send notification about unregistered residents: {e}")
-
-        
+async def cmd_confirmation(message: Message, bot: Bot):
+    user = await get_resident_by_tg_id(message.from_user.id)
+    if not user:
+        await message.answer("Сначала вам нужно зарегистрироваться. Отправьте свое имя.")
+        return
+    # Получаем информацию о дежурстве пользователя
+    user_duty = await get_user_duty(message.from_user.id)
+    
+    if user_duty:
+        # Пользователь должен дежурить - отправляем сообщение с кнопкой подтверждения
+        message_text = (f"👋 **Ты уверен, что хорошо убрался?**\n\n"
+                       f"Не забудь, что на этой неделе твоя очередь убирать: **{user_duty['room_name']}**.\n"
+                       "Когда закончишь, нажми на кнопку ниже.")
+        await message.answer(
+            text=message_text,
+            parse_mode="Markdown",
+            reply_markup=get_confirm_keyboard(user_duty['id'])
+        )
+    else:
+        # Пользователь не должен дежурить на этой неделе
+        await message.answer("Чувак, тебя нет в списке на уборку на этой неделе.")
