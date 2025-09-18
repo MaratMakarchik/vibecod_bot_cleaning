@@ -1,6 +1,7 @@
 # app/keyboards/inline.py
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+
 def get_confirm_keyboard(schedule_id: int) -> InlineKeyboardMarkup:
     """Создает клавиатуру для подтверждения уборки."""
     return InlineKeyboardMarkup(inline_keyboard=[

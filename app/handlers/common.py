@@ -2,8 +2,11 @@
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import CommandStart
+from aiogram import Bot
 # Добавляем новый импорт
 from app.db.database import get_resident_by_tg_id, get_average_ratings, get_current_week_schedule
+from app.db.database import get_uncompleted_duties_for_today
+from app.keyboards.inline import get_confirm_keyboard
 
 router = Router()
 
@@ -17,7 +20,8 @@ async def cmd_start(message: Message):
             "Я бот для управления дежурствами по уборке.\n\n"
             "**Доступные команды:**\n"
             "/schedule - посмотреть текущий план уборки\n"
-            "/ratings - посмотреть рейтинг качества уборок"
+            "/ratings - посмотреть рейтинг качества уборок\n"
+            "/confirmation - подтвердить выполнение уборки"
         )
     else:
         await message.answer(
@@ -68,3 +72,31 @@ async def cmd_ratings(message: Message):
         response += f"**{r['name']}**: {avg_rating:.2f}/5.00 ({star_rating}) - *оценок: {r['total_ratings']}*\n"
         
     await message.answer(response, parse_mode="Markdown")
+
+@router.message(F.text == "/confirmation")
+async def cmd_ratings(message: Message, bot: Bot):
+    duties = await get_uncompleted_duties_for_today()
+    for duty in duties:
+        if duty['telegram_id']:
+            try:
+                message1 = (f"👋 **Ты уверен, что хорошо убрался ?**\n\n"
+                           f"Не забудь, что на этой неделе твоя очередь убирать: **{duty['room_name']}**.\n"
+                           "Когда закончишь, нажми на кнопку ниже.")
+                await bot.send_message(
+                    chat_id=duty['telegram_id'],
+                    text=message1,
+                    parse_mode="Markdown",
+                    reply_markup=get_confirm_keyboard(duty['id'])
+                )
+            except Exception as e:
+                print(f"Failed to send reminder to {duty['resident_name']}: {e}")
+        else:
+            has_conf = True
+        if has_conf:
+            try:
+                message2 = "Чувак, тебя нет в списке на уборку"
+                await message.answer(message2)
+            except Exception as e:
+                print(f"Failed to send notification about unregistered residents: {e}")
+
+        

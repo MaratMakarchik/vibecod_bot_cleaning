@@ -88,14 +88,13 @@ async def assign_duties(bot: Bot):
 
 
 async def send_reminders(bot: Bot):
-    # ... (эта функция без изменений)
+   
     print("Sending reminders...")
     duties = await get_uncompleted_duties_for_today()
     for duty in duties:
         if duty['telegram_id']:
             try:
-                message = (f"👋 **Напоминание об уборке!**\n\n"
-                           f"Не забудь, что на этой неделе твоя очередь убирать: **{duty['room_name']}**.\n"
+                message = (f"Не забудь, что на этой неделе твоя очередь убирать: **{duty['room_name']}**.\n"
                            "Когда закончишь, нажми на кнопку ниже.")
                 await bot.send_message(
                     chat_id=duty['telegram_id'],
@@ -105,6 +104,8 @@ async def send_reminders(bot: Bot):
                 )
             except Exception as e:
                 print(f"Failed to send reminder to {duty['resident_name']}: {e}")
+       
+
 
 
 async def send_overdue_reminders(bot: Bot):
