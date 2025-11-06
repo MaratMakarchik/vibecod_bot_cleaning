@@ -64,9 +64,15 @@ async def get_resident_by_tg_id(telegram_id):
 
 # --- Функции для планировщика ---
 async def get_cleaning_candidates():
+    """
+    ИЗМЕНЕНО: Теперь выбирает ВСЕХ жителей, но сортирует их
+    по количеству уборок подряд (по возрастанию).
+    Это гарантирует, что мы всегда получим кандидатов,
+    если жители вообще есть в БД.
+    """
     async with aiosqlite.connect(DB_NAME) as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT * FROM residents WHERE consecutive_cleanings < 2 ORDER BY consecutive_cleanings, RANDOM()")
+        cursor = await db.execute("SELECT * FROM residents ORDER BY consecutive_cleanings ASC, RANDOM()")
         return await cursor.fetchall()
 
 async def get_all_rooms():

@@ -9,20 +9,28 @@ from app.db.database import (
 )
 from app.keyboards.inline import get_confirm_keyboard
 from app.config import OVERDUE_MESSAGES
+# Импортируем наш новый логгер
+from app.utils.error_logging import add_error_log
 
 async def assign_duties(bot: Bot):
     """Назначает дежурных на следующую смену."""
     print("Запускаю процесс назначения дежурных...")
     
-    candidates = await get_cleaning_candidates()
+    candidates = await get_cleaning_candidates() # Теперь это ВСЕ жители, отсортированные
     rooms = await get_all_rooms()
 
     if len(candidates) < len(rooms):
-        print("Недостаточно кандидатов для распределения дежурств.")
+        # Эта ошибка теперь сработает, только если жителей МЕНЬШЕ, чем комнат
+        print(f"Недостаточно кандидатов (жителей: {len(candidates)}) для комнат: {len(rooms)})")
+        add_error_log("assign_duties: Not enough residents to fill all rooms.")
         return
 
     # --- Логика выбора дежурных ---
-    chosen_residents = random.sample(candidates, len(rooms))
+    
+    # ИЗМЕНЕНО: Больше не используем random.sample.
+    # Просто берем первых N жителей из отсортированного списка.
+    chosen_residents = candidates[:len(rooms)]
+    
     shuffled_rooms = list(rooms)
     random.shuffle(shuffled_rooms)
     
@@ -44,7 +52,7 @@ async def assign_duties(bot: Bot):
             
             # Обмен комнатами
             temp_assignments[res_id], temp_assignments[swap_res_id] = temp_assignments[swap_res_id], temp_assignments[res_id]
-
+    
     # Финальный список пар (объект жителя, объект комнаты)
     resident_map = {res['id']: res for res in chosen_residents}
     room_map = {room['id']: room for room in rooms}
@@ -82,7 +90,10 @@ async def assign_duties(bot: Bot):
                 reply_markup=get_confirm_keyboard(notification['schedule_id'])
             )
         except Exception as e:
-            print(f"Не удалось отправить уведомление о назначении жителю {notification['resident_name']}: {e}")
+            # ИЗМЕНЕНО: Логгируем ошибку
+            error_msg = f"Не удалось отправить уведомление о назначении жителю {notification['resident_name']}: {e}"
+            print(error_msg)
+            add_error_log(error_msg)
     
     print(f"Дежурства успешно назначены.")
 
@@ -103,7 +114,9 @@ async def send_reminders(bot: Bot):
                     reply_markup=get_confirm_keyboard(duty['id'])
                 )
             except Exception as e:
-                print(f"Failed to send reminder to {duty['resident_name']}: {e}")
+                error_msg = f"Failed to send reminder to {duty['resident_name']}: {e}"
+                print(error_msg)
+                add_error_log(error_msg)
        
 
 
@@ -123,4 +136,6 @@ async def send_overdue_reminders(bot: Bot):
                     reply_markup=get_confirm_keyboard(duty['id'])
                 )
             except Exception as e:
-                print(f"Failed to send overdue reminder to {duty['resident_name']}: {e}")
+                error_msg = f"Failed to send overdue reminder to {duty['resident_name']}: {e}"
+                print(error_msg)
+                add_error_log(error_msg)

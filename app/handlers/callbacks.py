@@ -6,6 +6,7 @@ from app.db.database import (
     get_all_residents_for_rating, save_rating
 )
 from app.keyboards.inline import get_rating_keyboard
+from app.utils.error_logging import add_error_log
 
 router = Router()
 
@@ -36,7 +37,9 @@ async def process_confirm_callback(callback: CallbackQuery, bot: Bot):
                     reply_markup=rating_keyboard
                 )
             except Exception as e:
-                print(f"Failed to send rating request to {res['telegram_id']}: {e}")
+                error_msg = f"Failed to send rating request to {res['telegram_id']}: {e}"
+                print(error_msg)
+                add_error_log(error_msg)
 
 @router.callback_query(F.data.startswith("rate_"))
 async def process_rating_callback(callback: CallbackQuery):
@@ -52,5 +55,7 @@ async def process_rating_callback(callback: CallbackQuery):
         await callback.message.edit_text(f"Спасибо! Ваша оценка ({rating} ⭐) принята.")
         await callback.answer("Оценка сохранена.")
     except Exception as e:
+        error_msg = f"Error processing rating: {e}"
+        print(error_msg)
+        add_error_log(error_msg)
         await callback.answer("Произошла ошибка или вы уже голосовали.")
-        print(f"Error processing rating: {e}")
