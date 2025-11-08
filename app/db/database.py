@@ -1,5 +1,6 @@
 # app/db/database.py
 import aiosqlite
+from datetime import date
 from app.config import DB_NAME, RESIDENTS, ROOMS
 
 async def initialize_db():
@@ -51,6 +52,65 @@ async def get_resident_by_name(name):
     async with aiosqlite.connect(DB_NAME) as db:
         cursor = await db.execute("SELECT * FROM residents WHERE name = ? COLLATE NOCASE", (name,))
         return await cursor.fetchone()
+async def get_room_by_name(name):
+    """Находит комнату по имени (без учета регистра)."""
+    async with aiosqlite.connect(DB_NAME) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM rooms WHERE name = ? COLLATE NOCASE", (name,))
+        return await cursor.fetchone()
+
+async def get_latest_schedule_date():
+    """Возвращает самую последнюю дату начала смены (week_start_date) из расписания."""
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute("SELECT MAX(week_start_date) FROM schedule")
+        result = await cursor.fetchone()
+        if result and result[0]:
+            # aiosqlite возвращает дату как строку 'YYYY-MM-DD'
+            return date.fromisoformat(result[0])
+        return None # Возвращаем None, если расписаний нет
+
+async def set_resident_cleaning_stats(resident_id, room_id):
+    """Обновляет статистику для ОДНОГО жителя (для ручного назначения)."""
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("""
+            UPDATE residents 
+            SET consecutive_cleanings = consecutive_cleanings + 1, last_cleaned_room_id = ?
+            WHERE id = ?
+        """, (room_id, resident_id))
+        await db.commit()
+
+async def clear_latest_uncompleted_schedule():
+    """
+    Удаляет ВСЕ НЕЗАВЕРШЕННЫЕ записи
+    для самой последней смены (по MAX(week_start_date)).
+    Возвращает количество удаленных записей.
+    """
+    async with aiosqlite.connect(DB_NAME) as db:
+        # 1. Находим последнюю дату
+        cursor = await db.execute("SELECT MAX(week_start_date) FROM schedule")
+        latest_date_tuple = await cursor.fetchone()
+        
+        if not latest_date_tuple or not latest_date_tuple[0]:
+            return 0 # Таблица пуста
+
+        latest_date = latest_date_tuple[0]
+        
+        # 2. Удаляем незавершенные записи для этой даты
+        cursor = await db.execute(
+            "DELETE FROM schedule WHERE week_start_date = ? AND is_completed = FALSE",
+            (latest_date,)
+        )
+        await db.commit()
+        return cursor.rowcount
+
+async def delete_schedule_by_date(date_to_delete):
+    """
+    (ДЛЯ ИСПРАВЛЕНИЯ /admin_force_assignment)
+    Удаляет ВСЕ записи (выполненные и нет) для КОНКРЕТНОЙ даты.
+    """
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("DELETE FROM schedule WHERE week_start_date = ?", (date_to_delete,))
+        await db.commit()
 
 async def register_user(resident_id, telegram_id):
     async with aiosqlite.connect(DB_NAME) as db:

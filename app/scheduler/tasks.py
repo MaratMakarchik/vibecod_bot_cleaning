@@ -5,17 +5,26 @@ from aiogram import Bot
 from app.db.database import (
     get_cleaning_candidates, get_all_rooms, get_all_resident_ids,
     add_schedule_entry, update_resident_cleaning_stats,
-    get_uncompleted_duties_for_today, get_overdue_duties
+    get_uncompleted_duties_for_today, get_overdue_duties,
+    delete_schedule_by_date
 )
 from app.keyboards.inline import get_confirm_keyboard
 from app.config import OVERDUE_MESSAGES
-# Импортируем наш новый логгер
 from app.utils.error_logging import add_error_log
 
 async def assign_duties(bot: Bot):
     """Назначает дежурных на следующую смену."""
     print("Запускаю процесс назначения дежурных...")
-    
+    week_start_date = date.today()
+    try:
+        await delete_schedule_by_date(week_start_date)
+        print(f"Очищены все предыдущие записи для {week_start_date}.")
+    except Exception as e:
+        error_msg = f"Не удалось очистить расписание для {week_start_date}: {e}"
+        print(error_msg)
+        add_error_log(error_msg)
+        return # Останавливаемся, если не смогли очистить
+
     candidates = await get_cleaning_candidates() # Теперь это ВСЕ жители, отсортированные
     rooms = await get_all_rooms()
 
@@ -59,12 +68,12 @@ async def assign_duties(bot: Bot):
     assignments_with_data = [(resident_map[res_id], room_map[room_id]) for res_id, room_id in temp_assignments.items()]
     
     # --- Сохранение в БД и отправка уведомлений ---
-    week_start_date = date.today()
+    
     notifications_to_send = []
 
     # 1. Сначала сохраняем все дежурства в БД
     for resident, room in assignments_with_data:
-        schedule_id = await add_schedule_entry(resident['id'], room['id'], week_start_date)
+        schedule_id = await add_schedule_entry(resident['id'], room['id'], week_start_date) 
         if resident['telegram_id']:
             notifications_to_send.append({
                 'telegram_id': resident['telegram_id'],

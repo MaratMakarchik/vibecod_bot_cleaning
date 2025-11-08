@@ -8,7 +8,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.config import BOT_TOKEN, DUTY_CYCLE_WEEKS
 # Импортируем новую функцию
 from app.db.database import initialize_db, is_schedule_empty
-from app.handlers import common, registration, callbacks
+from app.handlers import common, registration, callbacks, admin
 # Импортируем assign_duties для вызова при старте
 from app.scheduler.tasks import assign_duties, send_reminders, send_overdue_reminders
 
@@ -37,8 +37,11 @@ async def main():
     # ---------------------------------------------------
 
     # Подключение роутеров
+
     dp.include_router(common.router)
     dp.include_router(callbacks.router)
+ 
+    dp.include_router(admin.router)
     dp.include_router(registration.router)
 
     # Настройка и запуск планировщика
